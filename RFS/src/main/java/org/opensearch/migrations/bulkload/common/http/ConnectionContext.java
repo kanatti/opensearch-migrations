@@ -1,5 +1,6 @@
 package org.opensearch.migrations.bulkload.common.http;
 
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Clock;
@@ -29,6 +30,10 @@ public class ConnectionContext {
     private final RequestTransformer requestTransformer;
     private final boolean compressionSupported;
     private final boolean awsSpecificAuthentication;
+
+    private final File caCert;
+    private final File clientCert;
+    private final File clientKey;
 
     private ConnectionContext(IParams params) {
         assert params.getHost() != null : "host is null";
@@ -79,6 +84,32 @@ public class ConnectionContext {
             requestTransformer = new NoAuthTransformer();
         }
         compressionSupported = params.isCompressionEnabled();
+
+        // Convert string paths to File objects; validate if they exist
+        this.caCert     = getCertFile(params.getCaCert(),     "CA cert");
+        this.clientCert = getCertFile(params.getClientCert(), "Client cert");
+        this.clientKey  = getCertFile(params.getClientKey(),  "Client key");
+
+        if ((clientCert != null) ^ (clientKey != null)) {
+            throw new IllegalArgumentException("Both clientCert and clientKey must be provided together, or neither.");
+        }
+    }
+
+    private File getCertFile(String path, String label) {
+        if (path == null) {
+            return null;
+        }
+
+        File f = new File(path);
+        if (!f.isFile()) {
+            throw new IllegalArgumentException(label + " file does not exist or is not a file: " + path);
+        }
+
+        return f;
+    }
+
+    public boolean hasCustomCerts() {
+        return caCert != null || (clientCert != null && clientKey != null);
     }
 
     public interface IParams {
@@ -91,6 +122,12 @@ public class ConnectionContext {
         String getAwsRegion();
 
         String getAwsServiceSigningName();
+
+        String getCaCert();
+
+        String getClientCert();
+
+        String getClientKey();
 
         boolean isCompressionEnabled();
 
@@ -120,6 +157,24 @@ public class ConnectionContext {
             description = "Optional.  The target password; if not provided, will assume no auth on target",
             required = false)
         public String password = null;
+
+        @Parameter(
+            names = {"--target-cacert", "--targetCaCert" },
+            description = "Optional.  The target cacert",
+            required = false)
+        public String caCert = null;
+
+        @Parameter(
+            names = {"--target-client-cert", "--targetClientCert" },
+            description = "Optional.  The target client cert",
+            required = false)
+        public String clientCert = null;
+
+        @Parameter(
+            names = {"--target-client-key", "--targetClientKey" },
+            description = "Optional.  The target client-key",
+            required = false)
+        public String clientKey = null;
 
         @Parameter(
             names = {"--target-aws-region", "--targetAwsRegion" },
@@ -177,6 +232,24 @@ public class ConnectionContext {
             description = "The source password; if not provided, will assume no auth on source",
             required = false)
         public String password = null;
+
+        @Parameter(
+            names = {"--source-cacert", "--sourceCaCert" },
+            description = "Optional.  The source cacert",
+            required = false)
+        public String caCert = null;
+
+        @Parameter(
+            names = {"--source-client-cert", "--sourceClientCert" },
+            description = "Optional.  The source client cert",
+            required = false)
+        public String clientCert = null;
+
+        @Parameter(
+            names = {"--source-client-key", "--sourceClientCertKey" },
+            description = "Optional.  The source client-key",
+            required = false)
+        public String clientKey = null;
 
         @Parameter(
             names = {"--source-aws-region", "--sourceAwsRegion" },
